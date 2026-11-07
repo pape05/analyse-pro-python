@@ -1,0 +1,99 @@
+import customtkinter as ctk
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from utils import (
+    FONT_FAMILY, ACCENT, SIDEBAR_ACTIVE, DANGER, TEXT_MUTED,
+    CHART_COLORS, card, section_title,
+)
+
+
+class PageGraphiques(ctk.CTkScrollableFrame):
+    def __init__(self, parent, get_pdf_top10):
+        super().__init__(parent, fg_color="transparent")
+        self.get_pdf_top10 = get_pdf_top10
+        self._build()
+
+    def _build(self):
+        self.graph_card = card(self)
+        self.graph_card.pack(fill="x", pady=(0, 15))
+
+        section_title(self.graph_card, "📊", "Visualisation des Résultats").pack(
+            padx=25, pady=(20, 10), anchor="w",
+        )
+
+        ctk.CTkButton(
+            self.graph_card, text="🔄  Actualiser les graphiques",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            fg_color=ACCENT, hover_color=SIDEBAR_ACTIVE,
+            corner_radius=10, height=40, width=250,
+            command=self._draw,
+        ).pack(padx=25, pady=(0, 15))
+
+        self.container = ctk.CTkFrame(self.graph_card, fg_color="transparent")
+        self.container.pack(padx=15, pady=(0, 20), fill="both")
+
+        ctk.CTkLabel(
+            self.container,
+            text="ℹ️  Analysez d'abord un fichier PDF, puis cliquez sur « Actualiser les graphiques ».",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13), text_color=TEXT_MUTED,
+        ).pack(pady=40)
+
+    def _draw(self):
+        for w in self.container.winfo_children():
+            w.destroy()
+
+        top10 = self.get_pdf_top10()
+        if not top10:
+            ctk.CTkLabel(
+                self.container,
+                text="❌  Aucune donnée disponible. Analysez d'abord un fichier PDF (onglet Analyse PDF).",
+                font=ctk.CTkFont(family=FONT_FAMILY, size=13), text_color=DANGER,
+            ).pack(pady=40)
+            return
+
+        mots = [m for m, _ in top10]
+        counts = [c for _, c in top10]
+        total = sum(counts)
+        freqs = [(c / total) * 100 for c in counts]
+        colors = CHART_COLORS[:len(mots)]
+
+        fig = Figure(figsize=(11, 4.5), dpi=100, facecolor="#FFFFFF")
+
+        ax1 = fig.add_subplot(121)
+        ax1.pie(
+            freqs, labels=None, autopct="%1.1f%%", startangle=90,
+            colors=colors, pctdistance=0.78,
+            textprops={"fontsize": 8, "fontfamily": FONT_FAMILY},
+        )
+        ax1.legend(
+            mots, loc="center left", bbox_to_anchor=(-0.35, 0.5),
+            fontsize=8, frameon=False,
+        )
+        ax1.set_title(
+            "Top 10 des mots (Diagramme circulaire)",
+            fontsize=11, fontweight="bold", fontfamily=FONT_FAMILY, pad=15,
+        )
+
+        ax2 = fig.add_subplot(122)
+        bars = ax2.bar(range(len(mots)), freqs, color=colors, width=0.65, edgecolor="none")
+        ax2.set_xticks(range(len(mots)))
+        ax2.set_xticklabels(mots, rotation=35, ha="right", fontsize=8, fontfamily=FONT_FAMILY)
+        ax2.set_ylabel("Fréquence (%)", fontsize=9, fontfamily=FONT_FAMILY)
+        ax2.set_title(
+            "Top 10 des mots (Diagramme en barres)",
+            fontsize=11, fontweight="bold", fontfamily=FONT_FAMILY, pad=15,
+        )
+        ax2.spines["top"].set_visible(False)
+        ax2.spines["right"].set_visible(False)
+        for bar, f in zip(bars, freqs):
+            ax2.text(
+                bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5,
+                f"{f:.1f}%", ha="center", fontsize=7,
+                fontfamily=FONT_FAMILY, color=TEXT_MUTED,
+            )
+
+        fig.tight_layout(pad=2.5)
+
+        canvas = FigureCanvasTkAgg(fig, master=self.container)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True)
